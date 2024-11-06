@@ -75,6 +75,12 @@
             font-style: italic;
             color: #666;
         }
+        #product-image {
+            max-width: 100%;
+            height: auto;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -88,36 +94,52 @@
     </div>
 
     <script>
-        // Mock database of products
-        const productDatabase = {
-            '123456789012': { name: 'Organic Apple', price: 1.99, isGood: true },
-            '234567890123': { name: 'Soda', price: 2.49, isGood: false },
-            '345678901234': { name: 'Whole Grain Bread', price: 3.99, isGood: true },
-            '456789012345': { name: 'Candy Bar', price: 0.99, isGood: false }
-        };
-
         const video = document.getElementById('video');
         const startButton = document.getElementById('startButton');
         const resultDiv = document.getElementById('result');
 
         const codeReader = new ZXing.BrowserMultiFormatReader();
 
+        async function fetchProductInfo(barcode) {
+            try {
+                const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching product info:', error);
+                return null;
+            }
+        }
+
+        function determineHealthStatus(product) {
+            const nutriscoreGrade = product.product.nutriscore_grade;
+            if (nutriscoreGrade) {
+                return ['a', 'b'].includes(nutriscoreGrade.toLowerCase()) ? 'good' : 'harmful';
+            }
+            return 'unknown';
+        }
+
         startButton.addEventListener('click', () => {
             if (startButton.textContent.includes('Start')) {
                 codeReader.decodeFromConstraints(
                     { video: { facingMode: "environment" } },
                     'video',
-                    (result, err) => {
+                    async (result, err) => {
                         if (result) {
                             const barcode = result.getText();
-                            const product = productDatabase[barcode];
+                            const productData = await fetchProductInfo(barcode);
                             
-                            if (product) {
-                                const goodOrHarmful = product.isGood ? 'good' : 'harmful';
+                            if (productData && productData.status === 1) {
+                                const product = productData.product;
+                                const healthStatus = determineHealthStatus(productData);
+                                const price = product.price ? `$${product.price}` : 'Price not available';
+                                
                                 resultDiv.innerHTML = `
-                                    <p><strong>Product:</strong> ${product.name}</p>
-                                    <p><strong>Price:</strong> $${product.price.toFixed(2)}</p>
-                                    <p>This product is considered <span class="${goodOrHarmful}">${goodOrHarmful}</span>.</p>
+                                    <p><strong>Product:</strong> ${product.product_name || 'Name not available'}</p>
+                                    <p><strong>Brand:</strong> ${product.brands || 'Brand not available'}</p>
+                                    <p><strong>Price:</strong> ${price}</p>
+                                    <p>This product is considered <span class="${healthStatus}">${healthStatus}</span>.</p>
+                                    ${product.image_url ? `<img id="product-image" src="${product.image_url}" alt="${product.product_name}">` : ''}
                                 `;
                             } else {
                                 resultDiv.textContent = 'Product not found in database.';

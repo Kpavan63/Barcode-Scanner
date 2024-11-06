@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enhanced Product Barcode Scanner</title>
+    <title>Mobile Barcode Scanner App</title>
     <script src="https://unpkg.com/@zxing/library@latest" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -18,22 +16,45 @@
             --good-color: #4caf50;
             --harmful-color: #f44336;
         }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
-            margin: 0;
-            padding: 0;
             background-color: var(--background-color);
             color: var(--text-color);
+            overflow-x: hidden;
         }
-        .container {
-            max-width: 800px;
-            margin: auto;
-            padding: 20px;
+        .app-container {
+            max-width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        h1, h2 {
+        .header {
+            background-color: var(--primary-color);
+            color: white;
             text-align: center;
-            color: var(--primary-color);
+            padding: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .content {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .footer {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            position: sticky;
+            bottom: 0;
         }
         #video-container {
             width: 100%;
@@ -51,8 +72,13 @@
             background-color: var(--card-background);
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-top: 20px;
+            margin-top: 1rem;
             overflow: hidden;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
         .card-image {
             width: 100%;
@@ -60,102 +86,162 @@
             object-fit: cover;
         }
         .card-content {
-            padding: 15px;
+            padding: 1rem;
         }
         .card-title {
             font-size: 1.2em;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 0.5rem;
         }
         .card-info {
-            font-size: 1.1em;
+            font-size: 1em;
             color: var(--secondary-color);
-            margin-bottom: 10px;
+            margin-bottom: 0.5rem;
         }
         .card-label {
             display: inline-block;
-            padding: 5px 10px;
+            padding: 0.25rem 0.5rem;
             border-radius: 5px;
             font-weight: bold;
+            font-size: 0.9em;
         }
         .good { background-color: var(--good-color); color: white; }
         .harmful { background-color: var(--harmful-color); color: white; }
-        button {
-            display: block;
-            width: 100%;
-            padding: 15px;
+        .button {
+            display: inline-block;
+            padding: 0.5rem 1rem;
             background-color: var(--primary-color);
             color: white;
             border: none;
             border-radius: 25px;
-            font-size: 16px;
+            font-size: 1em;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 20px;
             transition: background-color 0.3s;
-        }
-        button:hover { background-color: #3a7bd5; }
-        .loading {
             text-align: center;
-            margin-top: 20px;
-            font-style: italic;
-            color: #666;
+            text-decoration: none;
         }
-        #nutritionChart, #priceComparisonChart {
-            margin-top: 20px;
+        .button:hover { background-color: #3a7bd5; }
+        .tab-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1rem;
         }
-        #scannedItems {
-            margin-top: 20px;
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 0.5rem;
+            background-color: #ddd;
+            cursor: pointer;
         }
-        .scanned-item {
+        .tab.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        #scannedItems, #favoriteItems {
+            margin-top: 1rem;
+        }
+        .item {
             background-color: var(--card-background);
             border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 10px;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        #similarProducts {
-            margin-top: 20px;
+        .item-info {
+            flex: 1;
         }
-        .similar-product {
-            background-color: var(--card-background);
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .favorite-button {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            color: var(--secondary-color);
+        }
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 data-aos="fade-down">Enhanced Product Barcode Scanner</h1>
-        <div id="video-container" data-aos="zoom-in">
-            <video id="video" playsinline></video>
-        </div>
-        <button id="startButton" data-aos="fade-up">Start Scanning</button>
-        <div id="result" class="card" data-aos="flip-left"></div>
-        <div id="nutritionChart" data-aos="fade-right"></div>
-        <div id="priceComparisonChart" data-aos="fade-left"></div>
-        <h2 data-aos="fade-up">Scanned Items</h2>
-        <div id="scannedItems" data-aos="fade-up"></div>
-        <h2 data-aos="fade-up">Similar Products</h2>
-        <div id="similarProducts" data-aos="fade-up"></div>
+    <div class="app-container">
+        <header class="header">
+            <h1>Barcode Scanner</h1>
+        </header>
+        <main class="content">
+            <div id="video-container">
+                <video id="video" playsinline></video>
+            </div>
+            <div id="result" class="card"></div>
+            <div class="tab-container">
+                <div class="tab active" data-tab="scan">Scan</div>
+                <div class="tab" data-tab="history">History</div>
+                <div class="tab" data-tab="favorites">Favorites</div>
+            </div>
+            <div id="scanContent" class="tab-content active">
+                <div id="nutritionChart"></div>
+            </div>
+            <div id="historyContent" class="tab-content">
+                <h2>Scan History</h2>
+                <div id="scannedItems"></div>
+            </div>
+            <div id="favoritesContent" class="tab-content">
+                <h2>Favorite Items</h2>
+                <div id="favoriteItems"></div>
+            </div>
+        </main>
+        <footer class="footer">
+            <button id="startButton" class="button">Start Scanning</button>
+        </footer>
+    </div>
+    <div id="loadingOverlay" style="display: none;">
+        <div class="spinner"></div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            AOS.init();
-
             const video = document.getElementById('video');
             const startButton = document.getElementById('startButton');
             const resultDiv = document.getElementById('result');
             const scannedItemsDiv = document.getElementById('scannedItems');
-            const similarProductsDiv = document.getElementById('similarProducts');
+            const favoriteItemsDiv = document.getElementById('favoriteItems');
+            const loadingOverlay = document.getElementById('loadingOverlay');
 
             let codeReader;
             let lastResult = '';
             let lastScan = 0;
             const scannedItems = [];
+            let favoriteItems = JSON.parse(localStorage.getItem('favoriteItems')) || [];
 
             async function initializeCodeReader() {
                 if (!codeReader) {
@@ -164,6 +250,7 @@
             }
 
             async function fetchProductInfo(barcode) {
+                showLoading();
                 try {
                     const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
                     if (!response.ok) throw new Error('Network response was not ok');
@@ -171,17 +258,8 @@
                 } catch (error) {
                     console.error('Error fetching product info:', error);
                     return null;
-                }
-            }
-
-            async function fetchSimilarProducts(category) {
-                try {
-                    const response = await fetch(`https://world.openfoodfacts.org/category/${category}/1.json`);
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    return await response.json();
-                } catch (error) {
-                    console.error('Error fetching similar products:', error);
-                    return null;
+                } finally {
+                    hideLoading();
                 }
             }
 
@@ -193,7 +271,7 @@
                 return 'unknown';
             }
 
-            async function updateResultDiv(product) {
+            function updateResultDiv(product) {
                 const healthStatus = determineHealthStatus(product);
 
                 resultDiv.innerHTML = `
@@ -210,7 +288,6 @@
                 }
 
                 addToScannedItems(product);
-                await updateSimilarProducts(product.categories_tags ? product.categories_tags[0] : null);
             }
 
             function updateNutritionChart(nutrients) {
@@ -249,33 +326,61 @@
             }
 
             function addToScannedItems(product) {
-                if (scannedItems.length >= 5) {
-                    scannedItems.shift();
+                if (scannedItems.length >= 10) {
+                    scannedItems.pop();
                 }
-                scannedItems.push(product);
+                scannedItems.unshift(product);
                 updateScannedItemsList();
             }
 
             function updateScannedItemsList() {
                 scannedItemsDiv.innerHTML = scannedItems.map(item => `
-                    <div class="scanned-item" data-aos="fade-up">
-                        <strong>${item.product_name}</strong> - ${item.brands || 'Unknown brand'}
+                    <div class="item">
+                        <div class="item-info">
+                            <strong>${item.product_name}</strong> - ${item.brands || 'Unknown brand'}
+                        </div>
+                        <button class="favorite-button" data-barcode="${item.code}">
+                            ${favoriteItems.includes(item.code) ? '★' : '☆'}
+                        </button>
                     </div>
                 `).join('');
+                addFavoriteButtonListeners();
             }
 
-            async function updateSimilarProducts(category) {
-                if (category) {
-                    const similarProductsData = await fetchSimilarProducts(category);
-                    if (similarProductsData && similarProductsData.products) {
-                        const similarProducts = similarProductsData.products.slice(0, 3);
-                        similarProductsDiv.innerHTML = similarProducts.map(product => `
-                            <div class="similar-product" data-aos="fade-up">
-                                <strong>${product.product_name}</strong> - ${product.brands || 'Unknown brand'}
+            function updateFavoriteItemsList() {
+                favoriteItemsDiv.innerHTML = favoriteItems.map(barcode => {
+                    const item = scannedItems.find(i => i.code === barcode) || { product_name: 'Unknown Product', brands: 'Unknown Brand' };
+                    return `
+                        <div class="item">
+                            <div class="item-info">
+                                <strong>${item.product_name}</strong> - ${item.brands || 'Unknown brand'}
                             </div>
-                        `).join('');
-                    }
+                            <button class="favorite-button" data-barcode="${barcode}">★</button>
+                        </div>
+                    `;
+                }).join('');
+                addFavoriteButtonListeners();
+            }
+
+            function addFavoriteButtonListeners() {
+                document.querySelectorAll('.favorite-button').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const barcode = e.target.dataset.barcode;
+                        toggleFavorite(barcode);
+                    });
+                });
+            }
+
+            function toggleFavorite(barcode) {
+                const index = favoriteItems.indexOf(barcode);
+                if (index > -1) {
+                    favoriteItems.splice(index, 1);
+                } else {
+                    favoriteItems.push(barcode);
                 }
+                localStorage.setItem('favoriteItems', JSON.stringify(favoriteItems));
+                updateScannedItemsList();
+                updateFavoriteItemsList();
             }
 
             async function startScanning() {
@@ -293,7 +398,7 @@
                                     const productData = await fetchProductInfo(lastResult);
                                     if (productData && productData.status === 1) {
                                         updateResultDiv(productData.product);
-                                    } else {
+                                } else {
                                         resultDiv.textContent = 'Product not found in database.';
                                     }
                                 }
@@ -334,8 +439,31 @@
                 }
             });
 
-            // Preload ZXing library
+            // Tab functionality
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`${tab.dataset.tab}Content`).classList.add('active');
+                });
+            });
+
+            function showLoading() {
+                loadingOverlay.style.display = 'flex';
+            }
+
+            function hideLoading() {
+                loadingOverlay.style.display = 'none';
+            }
+
+            // Initialize
             initializeCodeReader();
+            updateScannedItemsList();
+            updateFavoriteItemsList();
         });
     </script>
 </body>

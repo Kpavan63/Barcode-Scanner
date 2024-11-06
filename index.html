@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Barcode Reader</title>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .container {
+            max-width: 100%;
+            margin: auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        #video-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+        #video {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .good {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .harmful {
+            color: #f44336;
+            font-weight: bold;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: #2196F3;
+            color: #fff;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        .loading {
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mobile Barcode Reader</h1>
+        <div id="video-container">
+            <video id="video" playsinline></video>
+        </div>
+        <button id="startButton">Start Scanning</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Mock database of products
+        const productDatabase = {
+            '123456789012': { name: 'Organic Apple', price: 1.99, isGood: true },
+            '234567890123': { name: 'Soda', price: 2.49, isGood: false },
+            '345678901234': { name: 'Whole Grain Bread', price: 3.99, isGood: true },
+            '456789012345': { name: 'Candy Bar', price: 0.99, isGood: false }
+        };
+
+        const video = document.getElementById('video');
+        const startButton = document.getElementById('startButton');
+        const resultDiv = document.getElementById('result');
+
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+
+        startButton.addEventListener('click', () => {
+            if (startButton.textContent.includes('Start')) {
+                codeReader.decodeFromConstraints(
+                    { video: { facingMode: "environment" } },
+                    'video',
+                    (result, err) => {
+                        if (result) {
+                            const barcode = result.getText();
+                            const product = productDatabase[barcode];
+                            
+                            if (product) {
+                                const goodOrHarmful = product.isGood ? 'good' : 'harmful';
+                                resultDiv.innerHTML = `
+                                    <p><strong>Product:</strong> ${product.name}</p>
+                                    <p><strong>Price:</strong> $${product.price.toFixed(2)}</p>
+                                    <p>This product is considered <span class="${goodOrHarmful}">${goodOrHarmful}</span>.</p>
+                                `;
+                            } else {
+                                resultDiv.textContent = 'Product not found in database.';
+                            }
+                            
+                            // Stop scanning after finding a result
+                            codeReader.reset();
+                            startButton.textContent = 'Start Scanning';
+                        }
+                        if (err && !(err instanceof ZXing.NotFoundException)) {
+                            console.error(err);
+                            resultDiv.textContent = 'Error during scanning. Please try again.';
+                        }
+                    }
+                ).catch((err) => {
+                    console.error(err);
+                    resultDiv.textContent = 'Failed to access the camera. Please ensure you have given permission.';
+                });
+                
+                startButton.textContent = 'Stop Scanning';
+                resultDiv.innerHTML = '<p class="loading">Scanning... Please point your camera at a barcode.</p>';
+            } else {
+                codeReader.reset();
+                startButton.textContent = 'Start Scanning';
+                resultDiv.textContent = '';
+            }
+        });
+
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                codeReader.reset();
+                startButton.textContent = 'Start Scanning';
+                resultDiv.textContent = '';
+            }
+        });
+    </script>
+</body>
+</html>

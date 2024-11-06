@@ -3,27 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Optimized Mobile Barcode Reader</title>
+    <title>Enhanced Product Barcode Scanner</title>
     <script src="https://unpkg.com/@zxing/library@latest" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
     <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5a623;
+            --background-color: #f0f0f0;
+            --card-background: #ffffff;
+            --text-color: #333333;
+            --good-color: #4caf50;
+            --harmful-color: #f44336;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
             margin: 0;
             padding: 0;
-            background-color: #f0f0f0;
-            color: #333;
+            background-color: var(--background-color);
+            color: var(--text-color);
         }
         .container {
-            max-width: 100%;
+            max-width: 800px;
             margin: auto;
             padding: 20px;
         }
-        h1 {
+        h1, h2 {
             text-align: center;
-            color: #333;
-            font-size: 24px;
-            margin-bottom: 20px;
+            color: var(--primary-color);
         }
         #video-container {
             width: 100%;
@@ -37,22 +47,45 @@
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        #result {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #fff;
+        .card {
+            background-color: var(--card-background);
             border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            overflow: hidden;
         }
-        .good { color: #4caf50; font-weight: bold; }
-        .harmful { color: #f44336; font-weight: bold; }
-        .unknown { color: #ff9800; font-weight: bold; }
+        .card-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .card-content {
+            padding: 15px;
+        }
+        .card-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .card-info {
+            font-size: 1.1em;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+        .card-label {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .good { background-color: var(--good-color); color: white; }
+        .harmful { background-color: var(--harmful-color); color: white; }
         button {
             display: block;
             width: 100%;
             padding: 15px;
-            background-color: #2196F3;
-            color: #fff;
+            background-color: var(--primary-color);
+            color: white;
             border: none;
             border-radius: 25px;
             font-size: 16px;
@@ -61,40 +94,68 @@
             margin-top: 20px;
             transition: background-color 0.3s;
         }
-        button:hover { background-color: #1976D2; }
+        button:hover { background-color: #3a7bd5; }
         .loading {
             text-align: center;
             margin-top: 20px;
             font-style: italic;
             color: #666;
         }
-        #product-image {
-            max-width: 100%;
-            height: auto;
-            margin-top: 10px;
+        #nutritionChart, #priceComparisonChart {
+            margin-top: 20px;
+        }
+        #scannedItems {
+            margin-top: 20px;
+        }
+        .scanned-item {
+            background-color: var(--card-background);
             border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #similarProducts {
+            margin-top: 20px;
+        }
+        .similar-product {
+            background-color: var(--card-background);
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Optimized Mobile Barcode Reader</h1>
-        <div id="video-container">
+        <h1 data-aos="fade-down">Enhanced Product Barcode Scanner</h1>
+        <div id="video-container" data-aos="zoom-in">
             <video id="video" playsinline></video>
         </div>
-        <button id="startButton">Start Scanning</button>
-        <div id="result"></div>
+        <button id="startButton" data-aos="fade-up">Start Scanning</button>
+        <div id="result" class="card" data-aos="flip-left"></div>
+        <div id="nutritionChart" data-aos="fade-right"></div>
+        <div id="priceComparisonChart" data-aos="fade-left"></div>
+        <h2 data-aos="fade-up">Scanned Items</h2>
+        <div id="scannedItems" data-aos="fade-up"></div>
+        <h2 data-aos="fade-up">Similar Products</h2>
+        <div id="similarProducts" data-aos="fade-up"></div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            AOS.init();
+
             const video = document.getElementById('video');
             const startButton = document.getElementById('startButton');
             const resultDiv = document.getElementById('result');
+            const scannedItemsDiv = document.getElementById('scannedItems');
+            const similarProductsDiv = document.getElementById('similarProducts');
 
             let codeReader;
             let lastResult = '';
             let lastScan = 0;
+            const scannedItems = [];
 
             async function initializeCodeReader() {
                 if (!codeReader) {
@@ -113,25 +174,108 @@
                 }
             }
 
+            async function fetchSimilarProducts(category) {
+                try {
+                    const response = await fetch(`https://world.openfoodfacts.org/category/${category}/1.json`);
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return await response.json();
+                } catch (error) {
+                    console.error('Error fetching similar products:', error);
+                    return null;
+                }
+            }
+
             function determineHealthStatus(product) {
-                const nutriscoreGrade = product.product.nutriscore_grade;
+                const nutriscoreGrade = product.nutriscore_grade;
                 if (nutriscoreGrade) {
                     return ['a', 'b'].includes(nutriscoreGrade.toLowerCase()) ? 'good' : 'harmful';
                 }
                 return 'unknown';
             }
 
-            function updateResultDiv(product) {
+            async function updateResultDiv(product) {
                 const healthStatus = determineHealthStatus(product);
-                const price = product.product.price ? `$${product.product.price}` : 'Price not available';
-                
+
                 resultDiv.innerHTML = `
-                    <p><strong>Product:</strong> ${product.product.product_name || 'Name not available'}</p>
-                    <p><strong>Brand:</strong> ${product.product.brands || 'Brand not available'}</p>
-                    <p><strong>Price:</strong> ${price}</p>
-                    <p>This product is considered <span class="${healthStatus}">${healthStatus}</span>.</p>
-                    ${product.product.image_url ? `<img id="product-image" src="${product.product.image_url}" alt="${product.product.product_name}" loading="lazy">` : ''}
+                    <img src="${product.image_url || 'https://via.placeholder.com/300x200.png?text=No+Image'}" alt="${product.product_name}" class="card-image">
+                    <div class="card-content">
+                        <div class="card-title">${product.product_name}</div>
+                        <div class="card-info">Brand: ${product.brands || 'Unknown'}</div>
+                        <div class="card-label ${healthStatus}">${healthStatus.toUpperCase()}</div>
+                    </div>
                 `;
+
+                if (product.nutriments) {
+                    updateNutritionChart(product.nutriments);
+                }
+
+                addToScannedItems(product);
+                await updateSimilarProducts(product.categories_tags ? product.categories_tags[0] : null);
+            }
+
+            function updateNutritionChart(nutrients) {
+                const ctx = document.getElementById('nutritionChart');
+                if (window.nutritionChart) {
+                    window.nutritionChart.destroy();
+                }
+                window.nutritionChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Fat', 'Carbs', 'Protein'],
+                        datasets: [{
+                            label: 'Nutrient Content (g per 100g)',
+                            data: [nutrients.fat_100g || 0, nutrients.carbohydrates_100g || 0, nutrients.proteins_100g || 0],
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.2)',
+                                'rgba(54, 162, 235, 0.2)',
+                                'rgba(75, 192, 192, 0.2)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(75, 192, 192, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function addToScannedItems(product) {
+                if (scannedItems.length >= 5) {
+                    scannedItems.shift();
+                }
+                scannedItems.push(product);
+                updateScannedItemsList();
+            }
+
+            function updateScannedItemsList() {
+                scannedItemsDiv.innerHTML = scannedItems.map(item => `
+                    <div class="scanned-item" data-aos="fade-up">
+                        <strong>${item.product_name}</strong> - ${item.brands || 'Unknown brand'}
+                    </div>
+                `).join('');
+            }
+
+            async function updateSimilarProducts(category) {
+                if (category) {
+                    const similarProductsData = await fetchSimilarProducts(category);
+                    if (similarProductsData && similarProductsData.products) {
+                        const similarProducts = similarProductsData.products.slice(0, 3);
+                        similarProductsDiv.innerHTML = similarProducts.map(product => `
+                            <div class="similar-product" data-aos="fade-up">
+                                <strong>${product.product_name}</strong> - ${product.brands || 'Unknown brand'}
+                            </div>
+                        `).join('');
+                    }
+                }
             }
 
             async function startScanning() {
@@ -148,7 +292,7 @@
                                     lastScan = now;
                                     const productData = await fetchProductInfo(lastResult);
                                     if (productData && productData.status === 1) {
-                                        updateResultDiv(productData);
+                                        updateResultDiv(productData.product);
                                     } else {
                                         resultDiv.textContent = 'Product not found in database.';
                                     }
